@@ -1,0 +1,243 @@
+This first chunk of code loads the data set into R so that we can use it. Let's load the data and start exploring what we have! 
+A data dictionary that explains all the variables can be found here:  https://www.kaggle.com/datasets/joebeachcapital/30000-spotify-songs?resource=download
+Much of the code in this workshop was taken from the following website, which also has a data dictionary describing all the variables: https://rpubs.com/KeyaSatpathy/605203
+
+Let's load the data and answer some questions: 
+
+How many songs are in this data set?
+What type of information do we have about these songs?
+
+```{r}
+#Load data
+#Full URL
+#spotify <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-21/spotify_songs.csv')
+#Shortened URL
+spotify <- readr::read_csv('https://tinyurl.com/ycksjn7n')
+
+#Let's explore the data
+spotify
+
+```
+Before we go to much further, there are a number of packages that we are going to need to load to do different things with our data. This next chunk of code will install all of these packages. This step may take a few minutes, so be patient! (Note: We can skip this step if the current version of R already has these packages installed)
+
+```{r}
+install.packages("tidyverse")
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("plotly")
+install.packages("corrplot")
+install.packages("factoextra")
+install.packages("plyr")
+install.packages("RColorBrewer")
+install.packages("funModeling")
+install.packages("knitr")
+install.packages("wordcloud")
+install.packages("wordcloud2")
+
+```
+
+Once the packages are installed on our version of R, we need to load the libraries for them so that R knows where to find the functions that we will be using for our analysis today. 
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(plotly)
+library(corrplot)
+library(factoextra)
+library(plyr)
+library(RColorBrewer)
+library(wordcloud)
+library(funModeling)
+```
+
+Now that we have everything we need, we need to do a little bit of "cleaning" of the data to get it ready for us to explore and analyze. One thing we need to do is check whether there is any missing data. Missing data is usually represented in a data set as "NA". R has a function that can check whether there are any variables in the data that include missing values, and then deletes the rows that contain missing data.
+
+Running the code below, which variables have missing data? Do we know how much missing data there is? Once you delete the rows with missing data, what happens to the number of rows in the data set?
+```{r}
+#Check which columns include missing data
+colSums(is.na(spotify))
+
+#Delete the rows that include missing data
+spotify <- na.omit(spotify)
+spotify
+
+```
+If you scroll through the data set, you'll also notice that there are some duplicate tracks. We want to remove these from our data set so that each track is included only once. Once you've run this, you'll notice that the number of rows in the data set has decreased. 
+
+```{r}
+#Remove duplicate tracks
+spotify <- spotify[!duplicated(spotify$track_id),]
+spotify
+```
+As a final step before we start looking at the data, we need to transform some variables so that they are more "useable" in our analysis. This includes converting the genre and subgenre columns and the mode and key into factor variables (also known as "categorical" variables) and converting the duration_ms to duration of the track in minutes (which is easier to think about than ms). Let's run this code and then look at what has changed in the data set.  
+
+```{r}
+
+#Convert variables to factors
+spotify <- spotify %>%
+  mutate(playlist_genre = as.factor(spotify$playlist_genre),
+         playlist_subgenre = as.factor(spotify$playlist_subgenre),
+         mode = as.factor(mode),
+         key = as.factor(key))
+
+#Compute duration_ms into minutes
+spotify <- spotify %>% mutate(duration_min = duration_ms/60000)
+
+#Remove some variables that are not needed
+spotify <- spotify %>% select(-c(track_id, track_album_id, playlist_id))
+
+spotify
+
+```
+Ok, we're ready to look at the data now! Let's start by looking at some descriptive statistics for each of the variables. What do we notice? 
+
+Which genres are represented in the data? 
+What is the length of the shortest track? What is the length of the longest track
+What is the average popularity score?
+
+
+```{r}
+
+summary(spotify)
+```
+
+The summary view we just ran doesn't tell us much about the artists represented in the data set. We can create a cool visualization called a "Word Cloud" to see which artists are represented the most in the data.
+
+```{r}
+#Artist word cloud
+
+set.seed(123)
+suppressWarnings(wordcloud(words = spotify$track_artist, freq = spotify$track_popularity, min.freq = 1, max.words=500, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2")))
+
+```
+We can also make a word cloud of common words in the track titles
+
+```{r}
+#Track title word cloud
+
+set.seed(123)
+suppressWarnings(wordcloud(words = spotify$track_name, freq = spotify$track_popularity, min.freq = 1, max.words=500, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2")))
+
+```
+What song has the highest rated popularity? We can sort the data set by popularity to see which tracks are most popular
+
+```{r}
+popular <- arrange(spotify,desc(track_popularity))
+popular
+```
+
+Let's now take a look at the characteristics of the song tracks themselves. There are many ways we can analyze and visualize the different audio features of the songs. One way to do this is to look at the correlations between the different audio features.
+What does this correlation plot tell us?
+
+```{r}
+#Correlation plot of numeric audio features (+ track popularity)
+audio_features <- select(spotify, track_popularity, danceability, energy, loudness, speechiness, acousticness, instrumentalness, liveness, valence, tempo)
+corrplot(cor(audio_features))
+```
+We can also look at the distribution of the audio features across all the songs in the data set using histograms
+
+```{r}
+#Plot histograms
+plot_num(audio_features)
+```
+
+We can also look at how the audio features of these tracks differ across different genres.
+Let's look first at energy between genres. The genres in our dataset are: EDM, Latin, Pop, R&B, Rap, and Rock. Which genre do you expect to have the highest energy? The lowest energy? 
+
+Let's look at the plot. Are we right?
+
+```{r}
+boxplot(energy~playlist_genre, data=spotify,
+        main = "Variation of energy between genres",
+        xlab = "Energy",
+        ylab = "Genre",
+        col = "orange",
+        border = "red",
+        horizontal = TRUE,
+        notch = TRUE
+)
+```
+Let's do the same thing for danceability. Which genre do we expect to have the highest danceability? The lowest danceability? What part of the code do you think we need to change to generate a plot of danceability by genre? Insert a new chunk below, copy the code from the previous chunk, and modify it to make a plot of Danceability.
+
+We can do this for all the other audio features, too!
+
+
+
+
+
+Now that we know something about the data set, let's say we want to build a system that will recommend new songs to a user based on songs that they already like and have listened to. How would we do that?
+
+The following chunks of code are one way that we can build a Spotify recommendation system.
+
+
+```{r}
+#Spotify recommendation system
+
+str(spotify)
+
+spotify_scaled <- scale(spotify[,c("danceability", "energy", "loudness", "speechiness", "acousticness","instrumentalness","liveness","valence", "tempo","duration_ms")])
+summary(spotify_scaled)
+
+set.seed(123)
+spotify_kmeans <- kmeans(spotify_scaled, centers = 5)
+spotify_kmeans$size
+spotify_kmeans$centers
+spotify$cluster <- spotify_kmeans$cluster
+tail(spotify)
+
+factoextra::fviz_cluster(spotify_kmeans,data=spotify_scaled)
+```
+The code we just ran has taken the audio features of each track in the data set and has used those to create 5 groups or "clusters" of tracks. The plot doesn't tell us much about each cluster, but we can see there is a lot of overlap across the clusters. Let's take a closer look at each cluster that was created using some of the techniques we've already learned. 
+
+```{r}
+#Summary of each cluster
+
+spotify %>% 
+  group_by(cluster) %>% 
+  summarise_all(mean) %>% 
+  select(cluster, acousticness, danceability, energy, instrumentalness, speechiness, valence, liveness)
+
+#Can we characterize the clusters based on the song features?
+```
+
+Let's create some plots like we did earlier to look at audio features by cluster:
+
+```{r}
+boxplot(energy~cluster, data=spotify,
+        main = "Variation of energy between clusters",
+        xlab = "Energy",
+        ylab = "Cluster",
+        col = "orange",
+        border = "red",
+        horizontal = TRUE,
+        notch = TRUE
+)
+
+boxplot(loudness~cluster, data=spotify,
+        main = "Variation of loudness between clusters",
+        xlab = "Loudness",
+        ylab = "Cluster",
+        col = "orange",
+        border = "red",
+        horizontal = TRUE,
+        notch = TRUE
+)
+```
+
+Now, let’s check  which cluster includes my favorite song. Let's say my favorite track from the list is m.A.A.d city by Kendrick Lamar.
+
+```{r}
+
+spotify %>% 
+  filter(track_name == "m.A.A.d city", track_artist == "Kendrick Lamar")
+```
+Now let's say I want to try a new genre, pop. So let's generate 5 songs at random that I should try according to my taste in the pop genre given that my favorite song is m.A.A.d city by Kendrick Lamar, which is in cluster 4. To do this we will find 5 other songs in cluster 4 that are labeled "pop". 
+
+```{r}
+spotify %>% 
+ filter(cluster == 4, playlist_genre == "pop") %>% 
+ sample_n(5)
+```
+
+With the remaining time in this workshop, we can explore different ways to improve our spotify recommender tool or explore recommendations for other songs!
